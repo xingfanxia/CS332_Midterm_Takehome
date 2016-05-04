@@ -8,8 +8,8 @@
 //Global counter
 int numCS_lounge = 0; //number of CS prof in 
 int numMath_lounge = 0; //number of Math prof
-int numCS_wait = 0;
-int numMath_wait= 0;
+int left = 0;
+int enters = 0;
 int sign = 0; //1 for Math, 2 for CS
 int totalnumber;
 
@@ -82,8 +82,6 @@ int main(int argc, char *argv[]) {
 		// for (i=0; i<maths+css; i++) {
 		// 	sem_post(startThread_sem);
 		// }
-
-		printf("111111\n");
 		// join all threads before letting main exit
 		for (i=0; i<maths+css; i++) {
 			pthread_join(profs[i], NULL);
@@ -124,7 +122,7 @@ int main(int argc, char *argv[]) {
 		// }
 
 
-		// int totalnumber = numCS_wait + numMath_wait;
+		// int totalnumber = numCS_out + numMath_out;
 		// while (totalnumber == 0) {
 		// 	for( int a = 1; a <= MathPthread; a = a + 1 ){ //Terminate Math threads when rowing finished
 		      
@@ -159,26 +157,18 @@ void* CS(void* args) {
 void* mathProfArrive(void* args) {
 	printf("Math Prof arrives\n"); 
 	fflush(stdout);
-	numMath_wait++;
-	// sem_post(waitThread_sem); //tell main it is created
-	// sem_wait(startThread_sem); //wait for main to tell it to start
+	pthread_mutex_lock(&avail_lock);
+	while (sign == 2) {
+		pthread_cond_wait(&Mathwait, &avail_lock);
+	}
+	printf("Math Prof enters lounge\n");
+	enters++;
+	fflush(stdout);
 	
-	while (numCS_wait + numMath_wait > 1) {
-		pthread_mutex_lock(&avail_lock);
-		while (sign != 1) {
-			pthread_cond_wait(&Mathwait, &avail_lock);
-			printf("waiting \n");
-		}
-		if (numMath_lounge+numCS_lounge == 0) {
-			pthread_cond_signal(&Mathwait);
-		}
-		printf("current sign is %d\n", sign);
-		printf("Math Prof enters lounge\n");
-		numMath_wait--;
-		numMath_lounge++;
-		sign == 1;
-		pthread_cond_signal(&Mathgo);
-		pthread_mutex_unlock(&avail_lock);
+	numMath_lounge++;
+	sign = 1;
+	// pthread_cond_signal(&Mathgo);
+	pthread_mutex_unlock(&avail_lock);
 	}
 
 	// pthread_mutex_lock(&avail_lock);
@@ -193,33 +183,25 @@ void* mathProfArrive(void* args) {
 	// 	sign = 1;
 	// 	fflush(stdout);
 	// 	//pthread_cond_signal(&Mathwait);
-	// 	numMath_wait--;
+	// 	numMath_out--;
 	// 	numMath_lounge++;
 		
 	// 	pthread_mutex_unlock(&avail_lock);
 	// }
-}
 
 void* csProfArrive(void* args) {
 	printf("CS Prof arrives\n"); 
 	fflush(stdout);
-	numCS_wait++;
-
-	while (numCS_wait + numMath_wait > 1) {
-		pthread_mutex_lock(&avail_lock);
-		while (sign != 2) {
-			pthread_cond_wait(&CSwait, &avail_lock);
-		}
-		if (numMath_lounge+numCS_lounge == 0) {
-			pthread_cond_signal(&CSwait);
-		}
-		printf("how the fk u get here\n");
-		printf("CS Prof enters lounge\n");
-		numCS_wait--;
-		numCS_lounge++;
-		sign = 2;
-		pthread_cond_signal(&CSgo);
-		pthread_mutex_unlock(&avail_lock);
+	pthread_mutex_lock(&avail_lock);
+	while (sign == 1) {
+		pthread_cond_wait(&CSwait, &avail_lock);
+	}
+	printf("CS Prof enters lounge\n");
+	fflush(stdout);
+	numCS_lounge++;
+	sign = 2;
+	// pthread_cond_signal(&CSgo);
+	pthread_mutex_unlock(&avail_lock);
 	}
 
 	// sem_post(waitThread_sem); //tell main it is created
@@ -236,48 +218,50 @@ void* csProfArrive(void* args) {
 	// 	sign = 2;
 	// 	fflush(stdout);
 	// 	//pthread_cond_signal(&CSwait);
-	// 	numCS_wait--;
+	// 	numCS_out--;
 	// 	numCS_lounge++;
 	// 	// sem_post(&CSHere)
 	// 	pthread_mutex_unlock(&avail_lock);
 
 	// }
-}
+
 
 void* mathProfLeave(void* args) {
-	pthread_mutex_lock(&leave_lock);
-	while (numMath_lounge == 0) {
-		pthread_cond_wait(&Mathgo,&leave_lock);
-	}
-	printf("num of maths prof: %d\n",numMath_lounge);
-	printf("Math Prof leaves Lounge\n");
-	fflush(stdout);
-	numMath_lounge--;
-	if (numMath_lounge == 0) {
-		sign = 0;
-	}
-	pthread_mutex_unlock(&leave_lock);
+		
+		pthread_mutex_lock(&avail_lock);
+		printf("Math Prof leaves Lounge\n");
+		fflush(stdout);
+		numMath_lounge--;
+		left++;
+		if (numMath_lounge == 0) {
+			sign = 0;
+			pthread_cond_signal(&CSwait);
+		}
+		pthread_mutex_unlock(&avail_lock);
+		printf("Math prof enter/left: %d / %d\n", enters, left);
+		fflush(stdout);
 	// totalnumberleaving++;
 	// printf("#ofleft: %d\n", totalnumberleaving);
-	// int numtotal = numMath_wait + numCS_wait;
+	// int numtotal = numMath_out + numCS_out;
 	// printf("number total waiting is%d\n", numtotal);
 }
 
 void* csProfLeave(void* args) {
-	pthread_mutex_lock(&leave_lock);
-	while (numCS_lounge == 0) {
-		pthread_cond_wait(&CSgo,&leave_lock);
-	}
-	printf("CS Prof leaves Lounge\n");
-	fflush(stdout);
-	numCS_lounge--;
-	if (numCS_lounge == 0) {
-		sign = 0;
-	}
-	pthread_mutex_unlock(&leave_lock);
+		pthread_mutex_lock(&avail_lock);
+		printf("CS Prof leaves Lounge\n");
+		fflush(stdout);
+		numCS_lounge--;
+		if (numCS_lounge == 0) {
+			sign = 0;
+			pthread_cond_signal(&Mathwait);
+		}
+		pthread_mutex_unlock(&avail_lock);
+		
+
+
 	// totalnumberleaving++;
 	// printf("#ofleft: %d\n", totalnumberleaving);
-	// int numtotal = numMath_wait + numCS_wait;
+	// int numtotal = numMath_out + numCS_out;
 	// printf("number total waiting is%d\n", numtotal);
 }
 
