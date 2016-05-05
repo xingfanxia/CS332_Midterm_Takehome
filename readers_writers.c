@@ -11,6 +11,7 @@
 
 void* Reader(void*);
 void* Writer(void*);
+void shuffle(int*, int);
 
 // initialize lock and 2 condition vars
 pthread_mutex_t lock;
@@ -22,6 +23,7 @@ int activeReaders = 0;
 int activeWriters = 0;
 int waitingReaders = 0;
 int waitingWriters = 0;
+int haswritten = 0;
 
 int main() {
     /* Initialize mutex and condition variable objects */
@@ -32,18 +34,43 @@ int main() {
     // create threads for testing here, R readers & W writers
     // you will want to mix up the order of creation for testing!
     int R = 5;
-    int W = 2;
+    int W = 10;
     pthread_t threads[R+W];
+    // int i;
+    // for (i=0; i<R; i++) {
+    //     long j = (long)i;
+    //     pthread_create(&threads[i], NULL, Reader, (void*) j);
+    // }
+    // for (i=R; i<R+W; i++) {
+    //     long j = (long)i;
+    //     pthread_create(&threads[i], NULL, Writer, (void*) j);
+    // }
+
+    int order[R + W];
     int i;
     for (i=0; i<R; i++) {
-        long j = (long)i;
-        pthread_create(&threads[i], NULL, Reader, (void*) j);
+        order[i] = 1;
     }
-    for (i=R; i<R+W; i++) {
-        long j = (long)i;
-        pthread_create(&threads[i], NULL, Writer, (void*) j);
+    for (; i<R+W; i++) {
+        order[i] = 2;
     }
+    // order now has as many 1's as PyDE students and as many 2's as Phylo 
+    // students, so just need to shuffle  
+    shuffle(order, R+W);
 
+    // now create threads in order indicated by shuffled order array
+
+    for (i=0; i<R+W; i++) {
+        long j = (long)i;
+        if (order[i]==1) {
+            pthread_create(&threads[i], NULL, Reader, (void*) j);
+        }
+        else if (order[i]==2) {
+            pthread_create(&threads[i], NULL, Writer, (void*) j);
+        }
+        else printf("something went horribly wrong!!!\n");
+        // create threads in batches, so that test case where all current
+    }
     // join all threads before quitting
     for (i=0; i<R+W; i++) {
         pthread_join(threads[i], NULL);    
@@ -110,21 +137,37 @@ void* Writer(void* args) {
     // if here going to write so increment activeWriters
     activeWriters++;
     pthread_mutex_unlock(&lock);
-
+    printf("#readers are waiting:%d\n", waitingReaders);
     printf("writer %ld begin writing\n", (long) args);
     fflush(stdout);
    // you should put a delay here for testing to make things more interesting
     printf("writer %ld finished writing\n", (long) args);
     fflush(stdout);
+    haswritten++;
 
     // done writing so decrement activeWriters, signal appropriate thread(s)
     pthread_mutex_lock(&lock);
     activeWriters--;
+    printf("#has written:%d\n", haswritten);
     if (waitingWriters>0) 
         pthread_cond_signal(&okToWrite);
-    else if (waitingReaders>0)
+    else if (waitingReaders>0 && haswritten >2) {
         pthread_cond_broadcast(&okToRead);
+        haswritten = 0; //reset has written if tellling readers to read
+    }
     pthread_mutex_unlock(&lock);
 
     return (void*) 0;
 }
+
+// function to randomize list of integers
+void shuffle(int* intArray, int arrayLen) {
+  int i=0;
+  for (i=0; i<arrayLen; i++) {
+    int r = rand()%arrayLen;
+    int temp = intArray[i];
+    intArray[i] = intArray[r];
+    intArray[r] = temp;
+  }
+}
+
