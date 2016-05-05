@@ -15,7 +15,7 @@ int enters = 0;
 int left1 = 0;
 int enters1 = 0; 
 
-int sign = 0; //1 for Math, 2 for CS
+int sign = 0; //1 for Math, 2 for CS, 0 for empty
 
 //Sync stuffs
 pthread_mutex_t avail_lock;
