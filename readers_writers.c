@@ -2,6 +2,8 @@
  * using condition variables 
  * Author: Sherri Goings
  * Last Modified: 5/1/2016
+ * @Modified: Xingfan Xia
+ * Been trying two days...still struggling for the solution
  */
 
 #include <stdio.h>
@@ -25,6 +27,7 @@ int activeWriters = 0;
 int waitingReaders = 0;
 int waitingWriters = 0;
 int haswritten = 0;
+int hasAwaken = 0;
 
 
 int main() {
@@ -83,16 +86,17 @@ int main() {
 void* Reader(void* args) {
     printf("reader %ld created\n", (long) args);
     fflush(stdout);
-    int hasAwaken = 0;
+
     // give writers priority by waiting if any are active or waiting
     pthread_mutex_lock(&lock);
-    while (activeWriters + waitingWriters > 0 && hasAwaken < 3) {
+    while (activeWriters + waitingWriters > 0 || hasAwaken < 3) {//wait until being woke 3 times
         waitingReaders++;
         pthread_cond_wait(&okToRead, &lock);
         hasAwaken++;
         waitingReaders--;
     }
-
+    //woke 3 times, can continue
+    
     // if here going to read so increment activeReaders
     activeReaders++;
     pthread_mutex_unlock(&lock);
@@ -107,7 +111,6 @@ void* Reader(void* args) {
     pthread_mutex_lock(&lock);
     activeReaders--;
     if (activeReaders==0 && waitingWriters>0) {
-
         pthread_cond_signal(&okToWrite);
     }
     pthread_mutex_unlock(&lock);
@@ -127,6 +130,7 @@ void* Writer(void* args) {
     fflush(stdout);
 
     // wait if anything else currently active
+    pthread_mutex_lock(&lock);
     while (activeWriters + activeReaders > 0) {
         waitingWriters++;
         pthread_cond_wait(&okToWrite, &lock);
@@ -135,21 +139,22 @@ void* Writer(void* args) {
     // if here going to write so increment activeWriters
     activeWriters++;
     pthread_mutex_unlock(&lock);
+
     printf("writer %ld begin writing\n", (long) args);
     fflush(stdout);
    // you should put a delay here for testing to make things more interesting
     printf("writer %ld finished writing\n", (long) args);
     fflush(stdout);
-    haswritten++;
 
     // done writing so decrement activeWriters, signal appropriate thread(s)
     pthread_mutex_lock(&lock);
     activeWriters--;
-    if (waitingWriters>0) 
+    if (waitingWriters>0) {
+        pthread_cond_broadcast(&okToRead); //boardcast readers first before writing
         pthread_cond_signal(&okToWrite);
-    else if (waitingReaders>0) {
-        pthread_cond_broadcast(&okToRead);
     }
+    else if (waitingReaders>0)
+        pthread_cond_broadcast(&okToRead);
     pthread_mutex_unlock(&lock);
 
     return (void*) 0;
