@@ -12,6 +12,7 @@
 void* Reader(void*);
 void* Writer(void*);
 void shuffle(int*, int);
+void delay(int);
 
 // initialize lock and 2 condition vars
 pthread_mutex_t lock;
@@ -25,6 +26,7 @@ int waitingReaders = 0;
 int waitingWriters = 0;
 int haswritten = 0;
 
+
 int main() {
     /* Initialize mutex and condition variable objects */
     pthread_mutex_init(&lock, NULL);
@@ -36,15 +38,6 @@ int main() {
     int R = 5;
     int W = 10;
     pthread_t threads[R+W];
-    // int i;
-    // for (i=0; i<R; i++) {
-    //     long j = (long)i;
-    //     pthread_create(&threads[i], NULL, Reader, (void*) j);
-    // }
-    // for (i=R; i<R+W; i++) {
-    //     long j = (long)i;
-    //     pthread_create(&threads[i], NULL, Writer, (void*) j);
-    // }
 
     int order[R + W];
     int i;
@@ -69,6 +62,8 @@ int main() {
             pthread_create(&threads[i], NULL, Writer, (void*) j);
         }
         else printf("something went horribly wrong!!!\n");
+        if (i%5==4) delay(2);
+        if (i%5==1) delay(3);
         // create threads in batches, so that test case where all current
     }
     // join all threads before quitting
@@ -88,14 +83,16 @@ int main() {
 void* Reader(void* args) {
     printf("reader %ld created\n", (long) args);
     fflush(stdout);
-
+    int hasAwaken = 0;
     // give writers priority by waiting if any are active or waiting
     pthread_mutex_lock(&lock);
-    while (activeWriters + waitingWriters > 0) {
+    while (activeWriters + waitingWriters > 0 && hasAwaken < 3) {
         waitingReaders++;
         pthread_cond_wait(&okToRead, &lock);
+        hasAwaken++;
         waitingReaders--;
     }
+
     // if here going to read so increment activeReaders
     activeReaders++;
     pthread_mutex_unlock(&lock);
@@ -105,11 +102,12 @@ void* Reader(void* args) {
    // you should put a delay here for testing to make things more interesting
     printf("reader %ld finished reading\n", (long) args);
     fflush(stdout);
-
+    hasAwaken = 0;
     // finish reading so decrement activeReaders, wake one writer if needed
     pthread_mutex_lock(&lock);
     activeReaders--;
     if (activeReaders==0 && waitingWriters>0) {
+
         pthread_cond_signal(&okToWrite);
     }
     pthread_mutex_unlock(&lock);
@@ -137,7 +135,6 @@ void* Writer(void* args) {
     // if here going to write so increment activeWriters
     activeWriters++;
     pthread_mutex_unlock(&lock);
-    printf("#readers are waiting:%d\n", waitingReaders);
     printf("writer %ld begin writing\n", (long) args);
     fflush(stdout);
    // you should put a delay here for testing to make things more interesting
@@ -148,12 +145,10 @@ void* Writer(void* args) {
     // done writing so decrement activeWriters, signal appropriate thread(s)
     pthread_mutex_lock(&lock);
     activeWriters--;
-    printf("#has written:%d\n", haswritten);
     if (waitingWriters>0) 
         pthread_cond_signal(&okToWrite);
-    else if (waitingReaders>0 && haswritten >2) {
+    else if (waitingReaders>0) {
         pthread_cond_broadcast(&okToRead);
-        haswritten = 0; //reset has written if tellling readers to read
     }
     pthread_mutex_unlock(&lock);
 
@@ -169,5 +164,23 @@ void shuffle(int* intArray, int arrayLen) {
     intArray[i] = intArray[r];
     intArray[r] = temp;
   }
+}
+
+/*
+ * NOP function to simply use up CPU time
+ * arg limit is number of times to run each loop, so runs limit^2 total loops
+ */
+void delay( int limit )
+{
+  int j, k;
+
+  for( j=1; j < limit*1000; j++ )
+    {
+      for( k=1; k < limit*1000; k++ )
+        {
+            int x = j*k/(k+j);
+            int y = x/j + k*x - (j+5)/k + (x*j*k);
+        }
+    }
 }
 

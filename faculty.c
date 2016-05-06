@@ -76,7 +76,8 @@ int main(int argc, char *argv[]) {
 			else printf("something went horribly wrong!!!\n");
 	        // create threads in batches, so that test case where all current
 	        // math & cs profs enter and exit lounge, then some more show up
-			// if (i%5==4) sleep(2);
+			if (i%5==4) delay(2);
+			if (i%5==1) delay(3);
 		}
 		// join all threads before letting main exit
 		for (i=0; i<maths+css; i++) {
@@ -89,14 +90,14 @@ int main(int argc, char *argv[]) {
 
 void* Math(void* args) {
 	mathProfArrive(args);
-	delay(rand()%5+4);
+	// delay(rand()%5+4);
 	mathProfLeave(args);
 	return 0;
 }
 
 void* CS(void* args) {
 	csProfArrive(args);
-	delay(rand()%5+4);
+	// delay(rand()%5+4);
 	csProfLeave(args);
 	return 0;
 }
